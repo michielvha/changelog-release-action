@@ -37,10 +37,23 @@ runs:
         REPO="${{ github.event.repository.name }}"
         VERSION="${{ inputs.version }}"
         TYPE="${{ inputs.type }}"
+        ACTION_PATH="${{ github.action_path }}"
+
+        # Convert plain commit hashes to linked hashes
+        # Matches the cliff.toml output format: "- abc1234 : message"
+        sed -i -E "s/^- ([a-f0-9]{7}) :/- [\`\1\`](https:\/\/github.com\/${OWNER}\/${REPO}\/commit\/\1) :/g" /tmp/changelog.md
 
         cp /tmp/changelog.md /tmp/release-body.md
-        echo "" >> /tmp/release-body.md
 
+        # Add "Full Changelog" comparison link
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        if [ -n "$PREV_TAG" ]; then
+          echo "" >> /tmp/release-body.md
+          echo "**Full Changelog**: [\`${PREV_TAG}...${VERSION}\`](https://github.com/${OWNER}/${REPO}/compare/${PREV_TAG}...${VERSION})" >> /tmp/release-body.md
+        fi
+
+        # Add artifact info
+        echo "" >> /tmp/release-body.md
         if [ "$TYPE" = "helm" ]; then
           CHART_NAME="${REPO%-helm}"
           cat >> /tmp/release-body.md <<EOF
@@ -65,6 +78,14 @@ runs:
         **Platforms:** \`linux/amd64\`, \`linux/arm64\`
         EOF
         fi
+
+        # Add branding
+        cat >> /tmp/release-body.md <<EOF
+
+        <div align="center">
+          <img src="https://raw.githubusercontent.com/michielvha/changelog-release-action/main/assets/logo.png" width="100" />
+        </div>
+        EOF
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2.6.1

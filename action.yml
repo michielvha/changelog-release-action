@@ -26,8 +26,7 @@ runs:
       uses: orhun/git-cliff-action@v4.7.0
       with:
         config: ${{ github.action_path }}/cliff.toml
-        args: --latest --strip header
-        output: /tmp/changelog.md
+        args: --latest --strip header --output /tmp/changelog.md
       env:
         GITHUB_TOKEN: ${{ github.token }}
 

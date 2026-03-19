@@ -1,0 +1,79 @@
+# Copyright (c) 2025 Michiel VH. Licensed under the MIT License. See LICENSE for details.
+
+name: 'Changelog Release'
+description: 'Generate changelog from conventional commits and create a GitHub Release'
+
+inputs:
+  version:
+    description: 'Release version (tag name)'
+    required: true
+  type:
+    description: 'Artifact type for the release footer: docker or helm'
+    required: false
+    default: 'docker'
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure full git history
+      shell: bash
+      run: |
+        git fetch --unshallow 2>/dev/null || true
+        git fetch --tags --force
+
+    - name: Generate changelog
+      id: changelog
+      uses: orhun/git-cliff-action@v4.7.0
+      with:
+        config: ${{ github.action_path }}/cliff.toml
+        args: --latest --strip header
+        output: /tmp/changelog.md
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: Build release body
+      shell: bash
+      run: |
+        OWNER="${{ github.repository_owner }}"
+        REPO="${{ github.event.repository.name }}"
+        VERSION="${{ inputs.version }}"
+        TYPE="${{ inputs.type }}"
+
+        cp /tmp/changelog.md /tmp/release-body.md
+        echo "" >> /tmp/release-body.md
+
+        if [ "$TYPE" = "helm" ]; then
+          CHART_NAME="${REPO%-helm}"
+          cat >> /tmp/release-body.md <<EOF
+        ---
+
+        ### Install
+
+        \`\`\`bash
+        helm install ${CHART_NAME} oci://ghcr.io/${OWNER}/charts/${CHART_NAME} --version ${VERSION}
+        \`\`\`
+        EOF
+        else
+          cat >> /tmp/release-body.md <<EOF
+        ---
+
+        ### Container Image
+
+        \`\`\`bash
+        docker pull ghcr.io/${OWNER}/${REPO}:${VERSION}
+        \`\`\`
+
+        **Platforms:** \`linux/amd64\`, \`linux/arm64\`
+        EOF
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2.6.1
+      with:
+        tag_name: ${{ inputs.version }}
+        name: ${{ inputs.version }}
+        body_path: /tmp/release-body.md
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ github.token }}

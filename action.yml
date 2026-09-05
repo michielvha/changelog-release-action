@@ -23,7 +23,7 @@ runs:
 
     - name: Generate changelog
       id: changelog
-      uses: orhun/git-cliff-action@v4.7.0
+      uses: orhun/git-cliff-action@v4.9.0
       with:
         config: ${{ github.action_path }}/cliff.toml
         args: --latest --strip header --output /tmp/changelog.md
